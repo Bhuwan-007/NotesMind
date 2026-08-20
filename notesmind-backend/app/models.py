@@ -1,7 +1,7 @@
 import enum
 import datetime
 import uuid
-from sqlalchemy import Column, String, Float, Enum, ForeignKey, DateTime, JSON, Text
+from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, DateTime, JSON, Text
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -31,6 +31,7 @@ class Case(Base):
     budget_head = Column(String, nullable=False)
     justification = Column(Text, nullable=False)
     status = Column(String, default="draft", nullable=False)
+    current_approval_stage = Column(Integer, default=0, nullable=False)
     draft_text = Column(Text, nullable=True)
     citations = Column(JSON, nullable=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=False)
@@ -56,6 +57,13 @@ class ApprovalRule(Base):
     min_amount = Column(Float, nullable=False, default=0.0)
     max_amount = Column(Float, nullable=True)  # Null means no upper limit
     required_chain = Column(JSON, nullable=False)  # e.g., ["hod", "dean"]
+
+class RequiredDocumentRule(Base):
+    __tablename__ = "required_document_rules"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    category = Column(String, nullable=False, index=True)
+    required_docs = Column(JSON, nullable=False)  # e.g., ["Invoice", "Quotation"]
 
 class AuditLog(Base):
     __tablename__ = "audit_log"

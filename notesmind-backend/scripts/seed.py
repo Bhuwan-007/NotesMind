@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.database import engine, SessionLocal
-from app.models import ApprovalRule, User, RoleEnum
+from app.models import ApprovalRule, RequiredDocumentRule, User, RoleEnum
 from app.services.auth_service import get_password_hash
 
 def seed_db():
@@ -21,6 +21,13 @@ def seed_db():
             ApprovalRule(category="conference TA/DA", min_amount=0, max_amount=None, required_chain=["officer", "hod"]),
         ]
         db.add_all(rules)
+        
+    if db.query(RequiredDocumentRule).count() == 0:
+        doc_rules = [
+            RequiredDocumentRule(category="lab equipment purchase", required_docs=["Quotation", "Justification Letter"]),
+            RequiredDocumentRule(category="conference TA/DA", required_docs=["Conference Brochure", "Travel Tickets"]),
+        ]
+        db.add_all(doc_rules)
     
     if db.query(User).count() == 0:
         users = [
