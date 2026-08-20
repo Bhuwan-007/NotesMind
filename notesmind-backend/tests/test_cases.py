@@ -76,9 +76,23 @@ def test_full_case_lifecycle(setup_db):
     missing = response.json()["missing_documents"]
     assert "Quotation" in missing and "Justification Letter" in missing
     
-    # Add a document
-    db.add(Document(case_id=case_id, filename="quote.pdf", doc_type="Quotation"))
-    db.commit()
+    # Add a document using endpoint
+    response = client.post(f"/cases/{case_id}/documents", json={
+        "filename": "quote.pdf",
+        "doc_type": "Quotation"
+    })
+    assert response.status_code == 200
+    
+    # Try adding document as wrong user
+    auth_as("hod")
+    response_wrong_user = client.post(f"/cases/{case_id}/documents", json={
+        "filename": "justification.pdf",
+        "doc_type": "Justification Letter"
+    })
+    assert response_wrong_user.status_code == 403
+    
+    # Switch back to officer
+    auth_as("officer")
     
     response = client.get(f"/cases/{case_id}/missing-docs")
     missing = response.json()["missing_documents"]

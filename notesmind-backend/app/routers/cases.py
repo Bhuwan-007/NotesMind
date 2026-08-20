@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 from ..database import get_db
-from ..models import Case, User, AuditLog
+from ..models import Case, User, AuditLog, Document
 from ..services.auth_service import get_current_user, require_role
 from ..services.workflow_service import get_approval_chain, get_missing_documents, can_approve
 
@@ -15,6 +15,10 @@ class CaseCreate(BaseModel):
     purpose: str
     budget_head: str
     justification: str
+
+class DocumentCreate(BaseModel):
+    filename: str
+    doc_type: str
 
 class CaseResponse(BaseModel):
     id: str
@@ -87,7 +91,13 @@ def submit_case(id: str, db: Session = Depends(get_db), current_user: User = Dep
         raise HTTPException(status_code=400, detail="Only draft cases can be submitted")
     
     case.status = "under_review"
-    case.current_approval_stage = 1  # The officer submitting it fulfills stage 0
+    
+    chain = get_approval_chain(db, case.category, case.amount)
+    if len(chain) > 0 and chain[0] == current_user.role.value:
+        case.current_approval_stage = 1
+    else:
+        case.current_approval_stage = 0
+        
     log_audit(db, case.id, current_user.id, "submitted", "Case submitted for approval")
     db.commit()
     return {"message": "Case submitted", "status": case.status}
@@ -126,3 +136,70 @@ def reject_case(id: str, db: Session = Depends(get_db), current_user: User = Dep
     log_audit(db, case.id, current_user.id, "rejected", f"Rejected by {current_user.role.value}")
     db.commit()
     return {"message": "Case rejected", "status": case.status}
+
+@router.post("/{id}/documents")
+def add_document(id: str, doc_data: DocumentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if case.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator of the case can attach documents")
+        
+    if case.status != "draft":
+        raise HTTPException(status_code=400, detail="Documents can only be attached while the case is in draft status")
+        
+    new_doc = Document(
+        case_id=case.id,
+        filename=doc_data.filename,
+        doc_type=doc_data.doc_type
+    )
+    db.add(new_doc)
+    db.commit()
+    return {"message": "Document attached successfully"}
+
+@router.delete("/{id}")
+def delete_case(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if case.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator of the case can delete it")
+        
+    if case.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft cases can be deleted")
+        
+    db.query(Document).filter(Document.case_id == case.id).delete()
+    db.query(AuditLog).filter(AuditLog.case_id == case.id).delete()
+    
+    db.delete(case)
+    db.commit()
+    return {"message": "Case deleted successfully"}
+
+class CaseUpdate(BaseModel):
+    category: str
+    amount: float
+    budget_head: str
+    draft_text: str | None = None
+
+@router.put("/{id}", response_model=CaseResponse)
+def update_case(id: str, case_data: CaseUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    if case.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this case")
+    if case.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft cases can be edited")
+        
+    case.category = case_data.category
+    case.amount = case_data.amount
+    case.budget_head = case_data.budget_head
+    if case_data.draft_text is not None:
+        case.draft_text = case_data.draft_text
+        
+    log_audit(db, case.id, current_user.id, "updated", "Case details updated")
+    db.commit()
+    db.refresh(case)
+    return case

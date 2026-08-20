@@ -23,7 +23,7 @@ app.include_router(workflow.router, prefix="/workflow", tags=["Workflow"])
 app.include_router(budget.router, prefix="/budget", tags=["Budget"])
 app.include_router(versions.router, prefix="/versions", tags=["Versions"])
 app.include_router(audit.router, prefix="/audit", tags=["Audit"])
-app.include_router(ai_gateway.router, prefix="/ai", tags=["AI Gateway"])
+app.include_router(ai_gateway.router, prefix="", tags=["AI Gateway"])
 
 @app.get("/")
 def read_root():
