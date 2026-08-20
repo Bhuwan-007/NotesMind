@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "../components/ThemeProvider";
+import { AuthProvider } from "../components/AuthProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,9 +35,11 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${sourceSerif4.variable} ${ibmPlexMono.variable} antialiased`}
       >
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

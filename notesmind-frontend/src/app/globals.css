@@ -1,33 +1,88 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito:wght@400;500;600;700&display=swap');
 
 @theme inline {
-  --color-bg-primary: var(--color-bg-primary);
-  --color-bg-surface: var(--color-bg-surface);
-  --color-bg-muted: var(--color-bg-muted);
+  --color-khadi: #f5f2eb;
+  --color-khadi-paper: #fcfbf9;
+  --color-indigo: #2a3556;
+  --color-indigo-light: #44537a;
+  --color-indigo-mute: #dbe0ed;
+  --color-terracotta: #c45a42;
+  --color-terracotta-light: #fcece8;
+  --color-umber: #38302a;
+  --color-umber-light: #6e6155;
   
-  --color-primary: var(--color-primary);
-  --color-primary-hover: var(--color-primary-hover);
-  --color-primary-subtle: var(--color-primary-subtle);
-  
-  --color-accent: var(--color-accent);
-  --color-accent-subtle: var(--color-accent-subtle);
-  
-  --color-ink: var(--color-ink);
-  --color-ink-muted: var(--color-ink-muted);
-  
-  --color-success: var(--color-success);
-  --color-warning: var(--color-warning);
-  --color-danger: var(--color-danger);
-  
-  --color-border: var(--color-border);
-  
-  --font-document: var(--font-document);
-  --font-ui: var(--font-ui);
-  --font-mono: var(--font-mono);
+  --font-ui: 'Nunito', sans-serif;
+  --font-doc: 'Crimson Pro', serif;
+}
+
+:root {
+  --color-khadi: #f5f2eb;
+  --color-khadi-paper: #fcfbf9;
+  --color-indigo: #2a3556;
+  --color-indigo-light: #44537a;
+  --color-indigo-mute: #dbe0ed;
+  --color-terracotta: #c45a42;
+  --color-terracotta-light: #fcece8;
+  --color-umber: #38302a;
+  --color-umber-light: #6e6155;
 }
 
 body {
-  background-color: var(--color-bg-primary);
-  color: var(--color-ink);
-  font-family: var(--font-ui);
+  background-color: var(--color-khadi);
+  color: var(--color-umber);
+  font-family: 'Nunito', sans-serif;
+  margin: 0;
+  padding: 0;
 }
+
+.woven-texture {
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h12v12H0V0zm2 2h2v2H2V2zm4 0h2v2H6V2zm4 0h2v2h-2V2zM2 6h2v2H2V6zm4 0h2v2H6V6zm4 0h2v2h-2V6zM2 10h2v2H2v-2zm4 0h2v2H6v-2zm4 0h2v2h-2v-2z' fill='%23ffffff' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+.thread-stepper-line {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  right: 1rem;
+  height: 1px;
+  background-color: var(--color-indigo-mute);
+  z-index: 0;
+}
+
+.thread-node {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.thread-node.completed {
+  background-color: var(--color-indigo);
+  color: var(--color-khadi-paper);
+}
+
+.thread-node.active {
+  background-color: var(--color-khadi-paper);
+  color: var(--color-indigo);
+  border: 2px solid var(--color-indigo);
+  box-shadow: 0 0 0 4px var(--color-indigo-mute);
+}
+
+.thread-node.pending {
+  background-color: var(--color-khadi-paper);
+  color: var(--color-umber-light);
+  border: 1px solid var(--color-indigo-mute);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #dcd7cd; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-umber-light); }
