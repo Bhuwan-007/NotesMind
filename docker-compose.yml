@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: notesmind-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: notesmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./notesmind-backend
+      dockerfile: Dockerfile
+    container_name: notesmind-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/notesmind
+      - JWT_SECRET_KEY=supersecretkey_change_me
+    depends_on:
+      - db
+    volumes:
+      - ./notesmind-backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./notesmind-frontend
+      dockerfile: Dockerfile
+    container_name: notesmind-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./notesmind-frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
