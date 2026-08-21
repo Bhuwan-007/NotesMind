@@ -72,11 +72,82 @@ def get_case(id: str, db: Session = Depends(get_db), current_user: User = Depend
 
 @router.get("/{id}/approval-chain")
 def get_case_approval_chain(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from ..services.workflow_service import get_ai_approval_chain
     case = db.query(Case).filter(Case.id == id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     chain = get_approval_chain(db, case.category, case.amount)
-    return {"required_chain": chain, "current_stage": case.current_approval_stage}
+    ai_chain = get_ai_approval_chain(chain)
+    ai_disagreement = chain != ai_chain
+    
+    return {
+        "required_chain": chain, 
+        "current_stage": case.current_approval_stage,
+        "system_chain": chain,
+        "ai_recommended_chain": ai_chain,
+        "ai_disagreement": ai_disagreement
+    }
+
+@router.get("/{id}/audit")
+def get_case_audit(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    logs = db.query(AuditLog).filter(AuditLog.case_id == id).order_by(AuditLog.timestamp.asc()).all()
+    
+    timeline = []
+    for log in logs:
+        actor = db.query(User).filter(User.id == log.actor_id).first()
+        actor_name = actor.name if actor else "Unknown"
+        timeline.append({
+            "date": log.timestamp.isoformat() + "Z",
+            "actor": actor_name,
+            "action": log.details or log.action
+        })
+    return {"timeline": timeline}
+
+@router.post("/{id}/generate-draft")
+def generate_draft(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import time
+    time.sleep(1.2) # Simulate AI delay
+    
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    draft_text = f"SUBJECT: Request for Administrative Approval\n\nIt is submitted for kind perusal that the department requires immediate procurement of the specified items to ensure uninterrupted academic activities.\n\nThe proposal has been reviewed against the university procurement guidelines and sufficient funds are available under the budget head: {case.budget_head}.\n\nApproval is solicited for the estimated expenditure of ₹{case.amount:,.2f}."
+    
+    # Save draft text to case
+    case.draft_text = draft_text
+    log_audit(db, case.id, current_user.id, "draft_generated", "Draft generated automatically via AI")
+    db.commit()
+    
+    # Mock AI payload matching both forms expected by frontend (new case vs edit case)
+    from ..services.workflow_service import get_ai_approval_chain
+    system_chain = get_approval_chain(db, case.category, case.amount)
+    ai_chain = get_ai_approval_chain(system_chain)
+    
+    return {
+        "draft_text": draft_text,
+        "precedents": [
+            { "id": "P-104", "source": "Case #8921 (Approved Jan 2026)", "excerpt": f"Similar procurement in {case.category} was routed through Registrar due to the amount exceeding standard limits.", "confidence": 0.92 }
+        ],
+        "rules": [
+            { "id": "R-42", "source": "Procurement Manual, Sec 4.2", "excerpt": "All purchases above standard limits must receive final authorization from the Registrar.", "confidence": 0.98 }
+        ],
+        "citations": [
+            { "source": "Case #8921 (Approved Jan 2026)", "excerpt": f"Similar procurement in {case.category} was routed through Registrar due to the amount exceeding standard limits." },
+            { "source": "Procurement Manual, Sec 4.2", "excerpt": "All purchases above standard limits must receive final authorization from the Registrar." }
+        ],
+        "ai_disagreement": True,
+        "disagreements": {
+            "chain_disagreement": True,
+            "ai_chain": ai_chain,
+            "system_chain": system_chain,
+            "docs_disagreement": False
+        }
+    }
 
 @router.get("/{id}/missing-docs")
 def get_case_missing_docs(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
