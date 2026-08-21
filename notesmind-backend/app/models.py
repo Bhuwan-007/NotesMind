@@ -1,7 +1,7 @@
 import enum
 import datetime
 import uuid
-from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, DateTime, JSON, Text
+from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, DateTime, JSON, Text, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -37,6 +37,8 @@ class Case(Base):
     created_by = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    confidentiality_level = Column(String, default="normal", nullable=False)  # "normal" or "confidential"
+    access_verified = Column(Boolean, default=False, nullable=False)
 
     creator = relationship("User")
 
@@ -83,3 +85,15 @@ class Version(Base):
     draft_text = Column(Text, nullable=False)
     edited_by = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class AccessOtp(Base):
+    __tablename__ = "access_otps"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    case_id = Column(String, ForeignKey("cases.id"), nullable=False, index=True)
+    otp_code = Column(String(6), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    verified = Column(Boolean, default=False, nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    max_attempts = Column(Integer, default=5, nullable=False)

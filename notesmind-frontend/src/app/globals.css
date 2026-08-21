@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme inline {
   --color-khadi: #f5f2eb;
@@ -11,7 +11,7 @@
   --color-terracotta-light: #fcece8;
   --color-umber: #38302a;
   --color-umber-light: #6e6155;
-  
+
   --font-ui: 'Nunito', sans-serif;
   --font-doc: 'Crimson Pro', serif;
 }
@@ -82,7 +82,122 @@ body {
   border: 1px solid var(--color-indigo-mute);
 }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #dcd7cd; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-umber-light); }
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dcd7cd;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-umber-light);
+}
+
+/* ── OTP digit input ─────────────────────────────────── */
+
+.otp-digit-input:focus {
+  border-color: var(--color-indigo) !important;
+  box-shadow: 0 0 0 3px var(--color-indigo-mute) !important;
+}
+
+.otp-digit-input::selection {
+  background: var(--color-indigo-mute);
+}
+
+/* ── Demo device panel ───────────────────────────────── */
+
+.demo-panel {
+  border: 2px dashed #c5bfb4;
+  background: #f0ede6;
+  border-radius: 16px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.demo-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    #c5bfb4 0px,
+    #c5bfb4 8px,
+    transparent 8px,
+    transparent 14px
+  );
+}
+
+.demo-panel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #e8e4db;
+  border: 1px solid #c5bfb4;
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6e6155;
+}
+
+/* ── Modal & success animations ──────────────────────── */
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Auth overlay ────────────────────────────────────── */
+
+.auth-overlay {
+  background: rgba(245, 242, 235, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@keyframes authFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; pointer-events: none; }
+}
+
+/* ── Confidential badge ──────────────────────────────── */
+
+@keyframes confidentialPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 90, 66, 0.25); }
+  50% { box-shadow: 0 0 0 6px rgba(196, 90, 66, 0); }
+}
+
+.confidential-badge {
+  animation: confidentialPulse 2.5s ease-in-out infinite;
+}

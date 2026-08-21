@@ -6,6 +6,7 @@ from ..database import get_db
 from ..models import Case, User, AuditLog, Document
 from ..services.auth_service import get_current_user, require_role
 from ..services.workflow_service import get_approval_chain, get_missing_documents, can_approve
+from ..services import otp_service
 
 router = APIRouter()
 
@@ -28,6 +29,8 @@ class CaseResponse(BaseModel):
     status: str
     current_approval_stage: int
     draft_text: str | None = None
+    confidentiality_level: str
+    access_verified: bool
     
     class Config:
         from_attributes = True
@@ -45,7 +48,8 @@ def create_case(case_data: CaseCreate, db: Session = Depends(get_db), current_us
         budget_head=case_data.budget_head,
         justification=case_data.justification,
         created_by=current_user.id,
-        status="draft"
+        status="draft",
+        confidentiality_level="confidential" if otp_service.is_confidential_category(case_data.category) else "normal"
     )
     db.add(new_case)
     db.commit()
@@ -136,6 +140,38 @@ def reject_case(id: str, db: Session = Depends(get_db), current_user: User = Dep
     log_audit(db, case.id, current_user.id, "rejected", f"Rejected by {current_user.role.value}")
     db.commit()
     return {"message": "Case rejected", "status": case.status}
+
+class OtpVerifyRequest(BaseModel):
+    otp: str
+
+@router.post("/{id}/request-access-otp")
+def request_access_otp(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if case.confidentiality_level != "confidential":
+        raise HTTPException(status_code=400, detail="Case is not confidential")
+
+    # Generate and store OTP
+    otp_service.create_otp(db, case.id)
+    log_audit(db, case.id, current_user.id, "otp_requested", "Access OTP requested")
+    return {"message": "OTP sent to Dean"}
+
+@router.post("/{id}/verify-access-otp")
+def verify_access_otp(id: str, request: OtpVerifyRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    result = otp_service.verify_otp(db, case.id, request.otp)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    case.access_verified = True
+    log_audit(db, case.id, current_user.id, "otp_verified", "Access OTP verified")
+    db.commit()
+    return {"message": "OTP verified successfully"}
 
 @router.post("/{id}/documents")
 def add_document(id: str, doc_data: DocumentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

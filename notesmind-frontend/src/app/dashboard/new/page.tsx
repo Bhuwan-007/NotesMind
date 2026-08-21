@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
+import { ALL_CATEGORIES, isConfidentialCategory } from "../../../lib/confidentiality";
+import { ShieldAlert } from "lucide-react";
 
 export default function NewRequestPage() {
   const router = useRouter();
@@ -69,7 +71,7 @@ export default function NewRequestPage() {
   const handleGenerateDraft = async () => {
     setIsGenerating(true);
     try {
-      const response = await api.post(`/ai/cases/${caseId}/generate-draft`, {});
+      const response = await api.post(`/cases/${caseId}/generate-draft`, {});
       setDraft(response);
       setStep(3);
     } catch (err) {
@@ -118,9 +120,40 @@ export default function NewRequestPage() {
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   >
-                    <option value="lab equipment purchase">Lab Equipment Purchase</option>
-                    <option value="conference TA/DA">Conference TA/DA</option>
+                    {ALL_CATEGORIES.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}{cat.confidential ? " 🔒" : ""}
+                      </option>
+                    ))}
                   </select>
+
+                  {/* Confidential category badge */}
+                  {isConfidentialCategory(formData.category) && (
+                    <div className="mt-3" style={{ animation: "modalSlideIn 0.25s ease" }}>
+                      <span
+                        className="confidential-badge inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider"
+                        style={{
+                          background: "var(--color-terracotta-light)",
+                          color: "var(--color-terracotta)",
+                          border: "1px solid rgba(196, 90, 66, 0.25)",
+                        }}
+                      >
+                        <ShieldAlert size={13} /> Requires Dean Authorization
+                      </span>
+                      <div
+                        className="mt-2 p-3 rounded-xl text-xs font-ui leading-relaxed"
+                        style={{
+                          background: "var(--color-terracotta-light)",
+                          color: "var(--color-umber)",
+                          borderLeft: "3px solid var(--color-terracotta)",
+                        }}
+                      >
+                        This category is classified as <strong>confidential</strong>. After
+                        submission, the Dean must authorize access via OTP before the case
+                        can proceed through the approval chain.
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-ink">Amount (INR)</label>

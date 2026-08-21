@@ -4,7 +4,8 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../components/AuthProvider";
 import { api } from "../../lib/api";
-import { Plus, FileText, ChevronRight } from "lucide-react";
+import { Plus, FileText, ChevronRight, Lock } from "lucide-react";
+import { isConfidentialCase } from "../../lib/confidentiality";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -113,22 +114,36 @@ export default function DashboardPage() {
                       {c.id.slice(0, 8).toUpperCase()}
                     </td>
                     <td className="py-4 px-6 font-ui text-sm font-semibold text-[var(--color-indigo)]">
-                      {c.category}
+                      <span className="flex items-center gap-2">
+                        {c.category}
+                        {isConfidentialCase(c) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[var(--color-terracotta-light)] text-[var(--color-terracotta)] border border-[var(--color-terracotta)] border-opacity-15">
+                            <Lock size={10} /> Confidential
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="py-4 px-6">
-                      <span
-                        className={`px-3 py-1 inline-flex font-ui text-[11px] font-bold uppercase tracking-wider rounded-md border ${
-                          c.status === "approved"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : c.status === "under_review"
-                            ? "bg-[var(--color-indigo-mute)] text-[var(--color-indigo)] border-[var(--color-indigo)] border-opacity-20"
-                            : c.status === "rejected"
-                            ? "bg-[var(--color-terracotta-light)] text-[var(--color-terracotta)] border-[var(--color-terracotta)] border-opacity-20"
-                            : "bg-gray-100 text-gray-600 border-gray-200"
-                        }`}
-                      >
-                        {c.status.replace("_", " ")}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 inline-flex font-ui text-[11px] font-bold uppercase tracking-wider rounded-md border ${
+                            c.status === "approved"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : c.status === "under_review"
+                              ? "bg-[var(--color-indigo-mute)] text-[var(--color-indigo)] border-[var(--color-indigo)] border-opacity-20"
+                              : c.status === "rejected"
+                              ? "bg-[var(--color-terracotta-light)] text-[var(--color-terracotta)] border-[var(--color-terracotta)] border-opacity-20"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
+                        >
+                          {c.status.replace("_", " ")}
+                        </span>
+                        {isConfidentialCase(c) && c.access_verified === false && (
+                          <span className="px-2 py-0.5 inline-flex font-ui text-[10px] font-bold uppercase tracking-wider rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                            Awaiting Auth
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 font-ui text-sm text-[var(--color-umber-light)]">
                       Stage {c.current_approval_stage}

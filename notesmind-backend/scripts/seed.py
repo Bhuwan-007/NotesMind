@@ -20,6 +20,8 @@ def seed_db():
             ApprovalRule(category="hackathon/fest expenditure", min_amount=50001, max_amount=None, required_chain=["officer", "hod", "dean", "registrar"]),
             ApprovalRule(category="lab equipment purchase", min_amount=0, max_amount=100000, required_chain=["officer", "hod", "dean"]),
             ApprovalRule(category="conference TA/DA", min_amount=0, max_amount=None, required_chain=["officer", "hod"]),
+            ApprovalRule(category="disciplinary action", min_amount=0, max_amount=None, required_chain=["officer", "hod", "dean"]),
+            ApprovalRule(category="faculty grievance", min_amount=0, max_amount=None, required_chain=["officer", "hod", "dean"]),
         ]
         db.add_all(rules)
         

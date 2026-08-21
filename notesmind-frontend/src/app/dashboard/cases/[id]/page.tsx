@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../lib/api";
-import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send } from "lucide-react";
+import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send, Lock, Loader2, Smartphone } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
+import { isConfidentialCase, needsOtpVerification } from "../../../../lib/confidentiality";
+import OtpVerificationModal from "../../../../components/OtpVerificationModal";
+import { useToast } from "../../../../components/Toast";
 
 export default function CaseViewerPage() {
   const params = useParams();
@@ -24,6 +27,17 @@ export default function CaseViewerPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ category: "", amount: 0, budget_head: "", draft_text: "" });
+
+  // OTP authorization state
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [demoOtp, setDemoOtp] = useState<string | null>(null);
+  const [fetchingDemoOtp, setFetchingDemoOtp] = useState(false);
+  const [authOverlayDismissing, setAuthOverlayDismissing] = useState(false);
+
+  const { showToast } = useToast();
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -129,11 +143,151 @@ export default function CaseViewerPage() {
   const expectedRole = approvalNodes[currentStep];
   const canApprove = isUnderReview && expectedRole === role;
 
+  const showAuthGate = needsOtpVerification(caseData) && !authOverlayDismissing;
+
+  // ── OTP handlers ──────────────────────────────────────
+
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      await api.post(`/cases/${caseId}/request-access-otp`, {});
+      setOtpSent(true);
+      showToast("OTP sent to Dean", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to send OTP", "error");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleFetchDemoOtp = async () => {
+    setFetchingDemoOtp(true);
+    try {
+      const data = await api.get("/demo/last-otp");
+      setDemoOtp(data.otp || data.code || JSON.stringify(data));
+    } catch (err: any) {
+      setDemoOtp("Error: " + (err.message || "Could not fetch"));
+    } finally {
+      setFetchingDemoOtp(false);
+    }
+  };
+
+  const handleOtpVerified = () => {
+    setShowOtpModal(false);
+    showToast("Access Granted — Dean authorization verified", "success");
+    // Optimistically update local state
+    setCaseData((prev: any) => ({ ...prev, access_verified: true }));
+    // Brief delay before dissolving the overlay
+    setTimeout(() => {
+      setAuthOverlayDismissing(true);
+    }, 800);
+  };
+
   return (
     <div className="flex h-full w-full bg-[var(--color-khadi)]">
       
       {/* Main Document Area */}
       <div className="flex-1 flex flex-col relative h-full">
+
+        {/* ═══ Awaiting Dean Authorization Gate ═══ */}
+        {showAuthGate && (
+          <div className="auth-overlay absolute inset-0 z-30 flex items-center justify-center">
+            <div
+              className="w-full max-w-lg mx-auto p-10 text-center"
+              style={{ animation: "modalSlideIn 0.4s ease" }}
+            >
+              {/* Shield icon */}
+              <div className="w-20 h-20 rounded-2xl bg-[var(--color-terracotta-light)] flex items-center justify-center mx-auto mb-6" style={{ border: "2px solid rgba(196,90,66,0.2)" }}>
+                <Lock size={36} className="text-[var(--color-terracotta)]" />
+              </div>
+
+              <h2 className="font-doc text-2xl font-semibold text-[var(--color-indigo)] mb-2">
+                Awaiting Dean Authorization
+              </h2>
+              <p className="font-ui text-sm text-[var(--color-umber-light)] leading-relaxed mb-8 max-w-sm mx-auto">
+                This case is classified <strong>confidential</strong>. The Dean must authorize access via OTP before case details can be viewed.
+              </p>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-3 items-center">
+                <button
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] disabled:opacity-50 transition-all"
+                >
+                  {sendingOtp ? (
+                    <><Loader2 size={16} className="animate-spin" /> Sending OTP…</>
+                  ) : otpSent ? (
+                    <><Check size={16} /> OTP Sent — Send Again</>
+                  ) : (
+                    <><Send size={16} /> Send OTP to Dean</>
+                  )}
+                </button>
+
+                {/* Dean can enter OTP directly */}
+                {(role === "dean" || otpSent) && (
+                  <button
+                    onClick={() => setShowOtpModal(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-ui font-semibold text-[var(--color-indigo)] hover:bg-[var(--color-indigo-mute)] transition-colors"
+                  >
+                    <ShieldAlert size={16} /> Enter OTP Code
+                  </button>
+                )}
+              </div>
+
+              {/* ── Demo: Dean's Device View ── */}
+              {isDemoMode && otpSent && (
+                <div className="demo-panel mt-8 text-left">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="demo-panel-badge">
+                      <Smartphone size={12} /> Demo: Dean&apos;s Device View
+                    </span>
+                    <button
+                      onClick={handleFetchDemoOtp}
+                      disabled={fetchingDemoOtp}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-ui font-bold text-[var(--color-umber-light)] hover:bg-[#e5e1d8] transition-colors disabled:opacity-50"
+                    >
+                      {fetchingDemoOtp ? (
+                        <><Loader2 size={12} className="animate-spin" /> Fetching…</>
+                      ) : (
+                        "Fetch Latest OTP"
+                      )}
+                    </button>
+                  </div>
+
+                  {demoOtp ? (
+                    <div className="text-center py-3">
+                      <p className="font-ui text-[10px] text-[var(--color-umber-light)] uppercase tracking-widest mb-2">Received OTP</p>
+                      <div className="flex justify-center gap-2">
+                        {demoOtp.split("").map((ch, i) => (
+                          <span
+                            key={i}
+                            className="w-10 h-12 flex items-center justify-center rounded-lg font-mono text-xl font-bold"
+                            style={{
+                              background: "white",
+                              border: "1px solid #c5bfb4",
+                              color: "var(--color-indigo)",
+                            }}
+                          >
+                            {ch}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="font-ui text-xs text-[var(--color-umber-light)] italic text-center py-2">
+                      Click &ldquo;Fetch Latest OTP&rdquo; to view the code sent to the Dean.
+                    </p>
+                  )}
+
+                  <p className="font-ui text-[10px] text-[var(--color-umber-light)] italic mt-3 text-center opacity-70">
+                    This panel is for demo purposes only and will not appear in production.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Top actions bar */}
         <div className="h-14 bg-white bg-opacity-50 border-b border-[#e5e1d8] flex items-center justify-between px-6 shrink-0 z-10">
@@ -385,6 +539,14 @@ export default function CaseViewerPage() {
           </div>
         </div>
       )}
+
+      {/* OTP Verification Modal */}
+      <OtpVerificationModal
+        caseId={caseId}
+        isOpen={showOtpModal}
+        onClose={() => setShowOtpModal(false)}
+        onVerified={handleOtpVerified}
+      />
     </div>
   );
 }
