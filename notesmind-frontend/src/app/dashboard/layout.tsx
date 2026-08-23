@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { 
   FileText, 
   Library, 
@@ -9,6 +11,8 @@ import {
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  
   return (
     <div className="flex h-screen w-full overflow-hidden antialiased selection:bg-[var(--color-indigo)] selection:text-[var(--color-khadi-paper)]">
       {/* Navigation Sidebar */}
@@ -27,22 +31,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav className="flex-1 py-6 px-3 space-y-2">
           {[
-            { icon: FileText, label: "Active Drafts", active: true },
-            { icon: Library, label: "Rule Directory", active: false },
-            { icon: Layers, label: "Past Precedents", active: false },
-          ].map((item, i) => (
-            <button 
-              key={i}
-              className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                item.active 
-                  ? "bg-white/15 text-white shadow-sm" 
-                  : "text-white/60 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <item.icon size={18} strokeWidth={item.active ? 2.5 : 2} />
-              <span className="hidden md:block font-ui font-semibold text-sm">{item.label}</span>
-            </button>
-          ))}
+            { icon: FileText, label: "Active Drafts", href: "/dashboard" },
+            { icon: Library, label: "Rule Directory", href: "/dashboard/rules" },
+            { icon: Layers, label: "Past Precedents", href: "/dashboard/precedents" },
+          ].map((item, i) => {
+            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            return (
+              <Link 
+                key={i}
+                href={item.href}
+                className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+                  isActive 
+                    ? "bg-white/15 text-white shadow-sm" 
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="hidden md:block font-ui font-semibold text-sm">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
         
         <div className="p-4 border-t border-white/10 hidden md:block">

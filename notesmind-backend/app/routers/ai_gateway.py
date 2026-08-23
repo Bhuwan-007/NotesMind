@@ -79,7 +79,7 @@ async def generate_draft(
         # Determine type based on heuristic
         source = chunk.get("source", "Unknown Source")
         src_lower = source.lower()
-        if "notesheet" in src_lower or "case" in src_lower:
+        if "notesheet" in src_lower or "case" in src_lower or "ggsipu" in src_lower:
             c_type = "precedent"
         else:
             c_type = "rule"
@@ -133,3 +133,58 @@ async def generate_draft(
         },
         "overall_confidence": overall_confidence,
     }
+
+@router.get("/knowledge/search")
+async def search_knowledge(
+    query: str,
+    type: str = "all",
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Search the external AgenticRAG knowledge base directly.
+    """
+    if not query.strip():
+        return {"results": []}
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://fastapi-backend-production-4995.up.railway.app/api/v1/retrieve",
+                json={"query": query}
+            )
+            response.raise_for_status()
+            ai_result = response.json()
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        logger.exception("AI Agent retrieval failed for query: %s", query)
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI Agent service unavailable: {exc}",
+        )
+
+    raw_chunks = ai_result.get("chunks", [])
+    results = []
+    
+    for chunk in raw_chunks:
+        if chunk.get("contains_table") is True:
+            continue
+            
+        source = chunk.get("source", "Unknown Source")
+        src_lower = source.lower()
+        if "notesheet" in src_lower or "case" in src_lower or "ggsipu" in src_lower:
+            c_type = "precedent"
+        else:
+            c_type = "rule"
+            
+        if type != "all" and c_type != type:
+            continue
+            
+        results.append({
+            "id": chunk.get("chunk_id", source),
+            "source": source,
+            "excerpt": chunk.get("content", "No excerpt provided"),
+            "score": chunk.get("score", 0.85),
+            "type": c_type,
+            "pages": chunk.get("pages", [])
+        })
+
+    return {"results": results}
