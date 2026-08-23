@@ -107,51 +107,6 @@ def get_case_audit(id: str, db: Session = Depends(get_db), current_user: User = 
         })
     return {"timeline": timeline}
 
-@router.post("/{id}/generate-draft")
-def generate_draft(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    from ..services.ai_agent_client import generate_draft_for_case
-
-    case = db.query(Case).filter(Case.id == id).first()
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Call the external AgenticRAG service for a real draft + citations
-    try:
-        ai_result = generate_draft_for_case(case)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"AI Agent service unavailable: {exc}",
-        )
-
-    draft_text: str = ai_result["draft_text"]
-    precedents: list = ai_result.get("precedents", [])
-    rules: list = ai_result.get("rules", [])
-    citations: list = ai_result.get("citations", [])
-
-    # Save draft text to case
-    case.draft_text = draft_text
-    log_audit(db, case.id, current_user.id, "draft_generated", "Draft generated via AI Agent")
-    db.commit()
-
-    # System-level approval chain (NotesMind domain logic, not from AI Agent)
-    from ..services.workflow_service import get_ai_approval_chain
-    system_chain = get_approval_chain(db, case.category, case.amount)
-    ai_chain = get_ai_approval_chain(system_chain)
-
-    return {
-        "draft_text": draft_text,
-        "precedents": precedents,
-        "rules": rules,
-        "citations": citations,
-        "ai_disagreement": system_chain != ai_chain,
-        "disagreements": {
-            "chain_disagreement": system_chain != ai_chain,
-            "ai_chain": ai_chain,
-            "system_chain": system_chain,
-            "docs_disagreement": False,
-        },
-    }
 
 @router.get("/{id}/missing-docs")
 def get_case_missing_docs(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
