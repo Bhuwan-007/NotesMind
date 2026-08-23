@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../lib/api";
-import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send, Lock, Loader2, Smartphone, Sparkles, FileText, AlertTriangle, FileWarning } from "lucide-react";
+import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send, Lock, Loader2, Smartphone, Sparkles, FileText, AlertTriangle, FileWarning, Download, Cloud } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
 import { isConfidentialCase, needsOtpVerification } from "../../../../lib/confidentiality";
 import OtpVerificationModal from "../../../../components/OtpVerificationModal";
@@ -58,6 +58,11 @@ export default function CaseViewerPage() {
         setChainData(chData);
         setMissingDocs(mDocs.missing_documents || []);
         setAuditData(aData.timeline || []);
+        
+        const citations = cData.citations || [];
+        setPrecedents(citations.filter((c: any) => c.type === "precedent"));
+        setRules(citations.filter((c: any) => c.type === "rule"));
+        
         setEditForm({
           category: cData.category,
           amount: cData.amount,
@@ -218,7 +223,7 @@ export default function CaseViewerPage() {
 
         {/* ═══ Awaiting Dean Authorization Gate ═══ */}
         {showAuthGate && (
-          <div className="auth-overlay absolute inset-0 z-30 flex items-center justify-center">
+          <div className="auth-overlay absolute inset-0 z-30 flex items-center justify-center no-print">
             <div
               className="w-full max-w-lg mx-auto p-10 text-center"
               style={{ animation: "modalSlideIn 0.4s ease" }}
@@ -316,11 +321,19 @@ export default function CaseViewerPage() {
           </div>
         )}
         
-        {/* Top actions bar */}
-        <div className="h-14 bg-white bg-opacity-50 border-b border-[#e5e1d8] flex items-center justify-between px-6 shrink-0 z-10">
-          <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
-            <ChevronLeft size={16} /> Back to Dashboard
-          </button>
+        <div className="h-14 bg-white bg-opacity-50 border-b border-[#e5e1d8] flex items-center justify-between px-6 shrink-0 z-10 no-print">
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <ChevronLeft size={16} /> Back to Dashboard
+            </button>
+            <div className="w-px h-4 bg-[#e5e1d8]"></div>
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <Download size={16} /> Download PDF
+            </button>
+            <button onClick={() => showToast("Save to Drive coming soon!", "success")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <Cloud size={16} /> Save to Drive
+            </button>
+          </div>
           
           {isDraft && (
             <div className="flex items-center gap-3">
@@ -371,7 +384,7 @@ export default function CaseViewerPage() {
         </div>
 
         {/* Soft Thread Stepper Header */}
-        <div className="h-28 bg-[var(--color-khadi-paper)] border-b border-[#e5e1d8] flex flex-col items-center justify-center px-10 shrink-0 shadow-sm z-10 relative">
+        <div className="h-28 bg-[var(--color-khadi-paper)] border-b border-[#e5e1d8] flex flex-col items-center justify-center px-10 shrink-0 shadow-sm z-10 relative no-print">
           
           {chainData?.ai_disagreement && (
             <div className="absolute top-2 flex items-center justify-center w-full pointer-events-none">
@@ -403,8 +416,8 @@ export default function CaseViewerPage() {
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-[#f0ede6]">
-          <div className="letterhead-canvas w-full max-w-[850px] p-12 lg:p-16 min-h-full">
+        <div className="flex-1 overflow-y-auto p-8 flex justify-center items-start bg-[#f0ede6]">
+          <div className="a4-document h-max">
             
             {missingDocs.length > 0 && (
               <div className="absolute top-8 right-8">
@@ -414,7 +427,7 @@ export default function CaseViewerPage() {
               </div>
             )}
 
-            <div className="mb-12 text-center mt-4">
+            <div className="border-b border-[#e5e1d8] pb-6 mb-8 text-center mt-4">
               <h2 className="font-ui text-sm font-bold uppercase tracking-widest text-[var(--color-umber-light)] mb-2">
                 University School of Automation & Robotics
               </h2>
@@ -493,7 +506,7 @@ export default function CaseViewerPage() {
               </div>
 
               {missingDocs.length > 0 && (
-                <div className="my-8 p-6 rounded-2xl bg-[var(--color-terracotta-light)] border border-[var(--color-terracotta)] border-opacity-10 relative overflow-hidden">
+                <div className="my-8 p-6 rounded-2xl bg-[var(--color-terracotta-light)] border border-[var(--color-terracotta)] border-opacity-10 relative overflow-hidden no-print">
                    <div className="absolute top-0 left-0 bottom-0 w-1 bg-[var(--color-terracotta)]"></div>
                    <p className="font-ui font-bold text-[13px] text-[var(--color-terracotta)] uppercase tracking-widest mb-2 flex items-center gap-2">
                      <ShieldAlert size={16} /> Pending Annexures
@@ -506,13 +519,47 @@ export default function CaseViewerPage() {
                    </ul>
                 </div>
               )}
+
+              {/* Signature Blocks */}
+              <div className="mt-16 pt-8 grid gap-8 w-full signature-row" style={{ gridTemplateColumns: `repeat(${approvalNodes.length || 3}, minmax(0, 1fr))` }}>
+                {approvalNodes.map((node: string, idx: number) => (
+                  <div key={idx} className="flex flex-col gap-2 signature-block break-inside-avoid">
+                    <div className="h-0 border-b border-dashed border-[#c5bfb4] mb-2 w-full"></div>
+                    <span className="font-ui text-xs font-bold uppercase tracking-wider text-[var(--color-indigo)]">
+                      {node.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                    <span className="font-ui text-[10px] text-[var(--color-umber-light)]">Date: _________________</span>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Citations Footer */}
+            {(rules.length > 0 || precedents.length > 0) && (
+              <div className="mt-16 pt-12">
+                <div className="border-t border-[#e5e1d8] pt-4">
+                  <h4 className="font-ui text-xs font-bold uppercase tracking-widest text-[var(--color-umber-light)] mb-3">References & Citations</h4>
+                  <div className="space-y-3">
+                    {rules.map((r, i) => (
+                      <p key={`r-${i}`} className="font-doc text-[11px] text-[var(--color-umber-light)] leading-relaxed">
+                        <span className="font-bold text-[var(--color-indigo)]">Rule {i+1}:</span> {r.excerpt} — <em className="text-[var(--color-umber)]">{r.source}</em>
+                      </p>
+                    ))}
+                    {precedents.map((p, i) => (
+                      <p key={`p-${i}`} className="font-doc text-[11px] text-[var(--color-umber-light)] leading-relaxed">
+                        <span className="font-bold text-[var(--color-indigo)]">Precedent {i+1}:</span> {p.excerpt} — <em className="text-[var(--color-umber)]">{p.source}</em>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Insight Panel */}
-      <div className="w-80 bg-[var(--color-khadi-paper)] border-l border-[#e5e1d8] shadow-[-10px_0_30px_rgba(0,0,0,0.02)] flex flex-col shrink-0 z-20 h-full">
+      <div className="w-80 bg-[var(--color-khadi-paper)] border-l border-[#e5e1d8] shadow-[-10px_0_30px_rgba(0,0,0,0.02)] flex flex-col shrink-0 z-20 h-full no-print">
         
         <div className="p-6 pb-4 border-b border-[#e5e1d8]">
           <h2 className="font-ui font-bold text-base text-[var(--color-indigo)] flex items-center gap-2">

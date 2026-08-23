@@ -109,6 +109,7 @@ async def generate_draft(
 
     # 4. Save draft in Case and Version
     case.draft_text = detailed_draft
+    case.citations = citations
 
     new_version = Version(
         case_id=case.id,

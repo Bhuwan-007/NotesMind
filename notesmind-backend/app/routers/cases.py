@@ -29,6 +29,7 @@ class CaseResponse(BaseModel):
     status: str
     current_approval_stage: int
     draft_text: str | None = None
+    citations: list[dict] | None = None
     confidentiality_level: str
     access_verified: bool
     

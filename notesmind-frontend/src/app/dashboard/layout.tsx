@@ -12,7 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen w-full overflow-hidden antialiased selection:bg-[var(--color-indigo)] selection:text-[var(--color-khadi-paper)]">
       {/* Navigation Sidebar */}
-      <div className="w-20 md:w-64 bg-[var(--color-indigo)] text-[var(--color-khadi-paper)] woven-texture flex flex-col shrink-0 shadow-lg z-20 transition-all duration-300">
+      <div className="w-20 md:w-64 bg-[var(--color-indigo)] text-[var(--color-khadi-paper)] woven-texture flex flex-col shrink-0 shadow-lg z-20 transition-all duration-300 no-print">
         <div className="h-20 flex items-center justify-center md:justify-start md:px-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">

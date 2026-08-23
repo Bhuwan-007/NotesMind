@@ -304,3 +304,65 @@ body {
   background-color: var(--color-indigo);
   border: 2px solid white;
 }
+
+/* ═══ A4 Document Styling & Print Styles ═══ */
+
+.a4-document {
+  width: 210mm;
+  min-height: 297mm;
+  height: max-content;
+  padding: 20mm;
+  margin: 0 auto;
+  background-color: white;
+  box-sizing: border-box;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e1d8;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
+  html, body, div, main, article, section {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  body {
+    background-color: white !important;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .a4-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm !important;
+    max-width: 100%;
+    margin: 0 auto !important;
+    padding: 20mm;
+    box-sizing: border-box;
+    height: auto;
+    min-height: 0;
+    box-shadow: none;
+    border: none;
+    overflow: visible;
+    display: block; /* Flexbox breaks print pagination */
+  }
+
+  .notesheet-section, .signature-block {
+    break-inside: avoid;
+  }
+
+  /* Hide non-printable elements inside the document */
+  .no-print {
+    display: none !important;
+  }
+}
