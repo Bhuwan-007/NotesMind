@@ -96,15 +96,17 @@ export default function CaseViewerPage() {
     }
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (newStatus?: string) => {
     try {
-      const updated = await api.put(`/cases/${caseId}`, editForm);
+      const payload = newStatus ? { ...editForm, status: newStatus } : editForm;
+      const updated = await api.put(`/cases/${caseId}/draft`, payload);
       setCaseData(updated);
       setIsEditing(false);
       
       // refresh chain if amount/category changed
       const chData = await api.get(`/cases/${caseId}/approval-chain`);
       setChainData(chData);
+      showToast("Draft updated successfully", "success");
     } catch (err: any) {
       alert("Failed to save changes: " + err.message);
     }
@@ -335,15 +337,24 @@ export default function CaseViewerPage() {
             </button>
           </div>
           
-          {isDraft && (
+          {(isDraft || isUnderReview) && (
             <div className="flex items-center gap-3">
               {isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-ui font-semibold text-[var(--color-umber-light)]">Cancel</button>
-                  <button onClick={handleSaveEdit} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors">Save Changes</button>
+                  <button onClick={() => handleSaveEdit(isUnderReview ? "under_review" : "draft")} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors">Save Changes</button>
+                  {isUnderReview && (
+                    <button onClick={() => handleSaveEdit("draft")} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors">Save as Draft</button>
+                  )}
                 </>
               ) : (
-                <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] bg-[var(--color-indigo-mute)] bg-opacity-30 hover:bg-opacity-50 transition-colors">Edit Details</button>
+                <>
+                  <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] bg-[var(--color-indigo-mute)] bg-opacity-30 hover:bg-opacity-50 transition-colors">Edit Details</button>
+                  <button onClick={handleGenerateDraft} disabled={generatingDraft} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] hover:bg-[var(--color-indigo-mute)] hover:bg-opacity-30 transition-colors">
+                    {generatingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {generatingDraft ? "Generating..." : "Generate Again"}
+                  </button>
+                </>
               )}
               
               <button 
@@ -351,15 +362,17 @@ export default function CaseViewerPage() {
                 disabled={deleting}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-terracotta)] hover:bg-[var(--color-terracotta-light)] transition-colors"
               >
-                <Trash2 size={16} /> Delete Draft
+                <Trash2 size={16} /> Delete
               </button>
-              <button 
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors"
-              >
-                <Send size={16} /> Submit Note
-              </button>
+              {isDraft && (
+                <button 
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors"
+                >
+                  <Send size={16} /> Submit Note
+                </button>
+              )}
             </div>
           )}
 

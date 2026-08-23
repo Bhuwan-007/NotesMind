@@ -21,11 +21,19 @@ class DocumentCreate(BaseModel):
     filename: str
     doc_type: str
 
+class DraftEdit(BaseModel):
+    category: str | None = None
+    amount: float | None = None
+    budget_head: str | None = None
+    draft_text: str
+    status: str | None = None
+
 class CaseResponse(BaseModel):
     id: str
     category: str
     amount: float
     purpose: str
+    budget_head: str | None = None
     status: str
     current_approval_stage: int
     draft_text: str | None = None
@@ -157,6 +165,61 @@ def approve_case(id: str, db: Session = Depends(get_db), current_user: User = De
     log_audit(db, case.id, current_user.id, "approved", action_detail)
     db.commit()
     return {"message": "Case approved", "status": case.status, "current_stage": case.current_approval_stage}
+
+@router.delete("/{id}")
+def delete_case(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if case.created_by != current_user.id and current_user.role.value != "dean":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this case")
+
+    # Cascade delete is typically handled by SQLAlchemy relationships, 
+    # but let's be explicit for safety if relationships aren't configured with cascade
+    from ..models import Version
+    db.query(AuditLog).filter(AuditLog.case_id == id).delete()
+    db.query(Version).filter(Version.case_id == id).delete()
+    db.query(Document).filter(Document.case_id == id).delete()
+    db.delete(case)
+    db.commit()
+    
+    return {"message": "Case deleted successfully"}
+
+@router.put("/{id}/draft", response_model=CaseResponse)
+def update_draft(id: str, edit_data: DraftEdit, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if case.status not in ["draft", "under_review"]:
+        raise HTTPException(status_code=400, detail="Can only edit draft or under_review cases")
+
+    if edit_data.category is not None:
+        case.category = edit_data.category
+    if edit_data.amount is not None:
+        case.amount = edit_data.amount
+    if edit_data.budget_head is not None:
+        case.budget_head = edit_data.budget_head
+        
+    case.draft_text = edit_data.draft_text
+    
+    if edit_data.status and edit_data.status == "draft":
+        case.status = "draft"
+        case.current_approval_stage = 0
+
+    from ..models import Version
+    new_version = Version(
+        case_id=case.id,
+        draft_text=edit_data.draft_text,
+        edited_by=current_user.id,
+    )
+    db.add(new_version)
+    log_audit(db, case.id, current_user.id, "edited", f"Draft manually edited (Status: {case.status})")
+    db.commit()
+    db.refresh(case)
+    
+    return case
 
 @router.post("/{id}/reject")
 def reject_case(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

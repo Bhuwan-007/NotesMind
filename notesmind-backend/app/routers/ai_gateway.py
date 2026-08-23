@@ -29,10 +29,10 @@ async def generate_draft(
     if not case:
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found in DB")
 
-    if case.status != "draft":
+    if case.status not in ["draft", "under_review"]:
         raise HTTPException(
             status_code=400,
-            detail="Can only generate drafts for cases in draft status",
+            detail="Can only generate drafts for cases in draft or under_review status",
         )
 
     # 1. Retrieve system hard rules
