@@ -25,6 +25,13 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     } catch (e) {
       // Ignore JSON parse error if response is not JSON
     }
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("role");
+        window.location.href = "/login";
+      }
+    }
     throw new Error(errorMsg);
   }
 

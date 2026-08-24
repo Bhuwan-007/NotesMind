@@ -49,7 +49,7 @@ def log_audit(db: Session, case_id: str, actor_id: str, action: str, details: st
     db.add(audit)
 
 @router.post("/", response_model=CaseResponse)
-def create_case(case_data: CaseCreate, db: Session = Depends(get_db), current_user: User = Depends(require_role(["officer"]))):
+def create_case(case_data: CaseCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     new_case = Case(
         category=case_data.category,
         amount=case_data.amount,
@@ -177,10 +177,11 @@ def delete_case(id: str, db: Session = Depends(get_db), current_user: User = Dep
 
     # Cascade delete is typically handled by SQLAlchemy relationships, 
     # but let's be explicit for safety if relationships aren't configured with cascade
-    from ..models import Version
+    from ..models import Version, AccessOtp
     db.query(AuditLog).filter(AuditLog.case_id == id).delete()
     db.query(Version).filter(Version.case_id == id).delete()
     db.query(Document).filter(Document.case_id == id).delete()
+    db.query(AccessOtp).filter(AccessOtp.case_id == id).delete()
     db.delete(case)
     db.commit()
     
@@ -288,24 +289,7 @@ def add_document(id: str, doc_data: DocumentCreate, db: Session = Depends(get_db
     db.commit()
     return {"message": "Document attached successfully"}
 
-@router.delete("/{id}")
-def delete_case(id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    case = db.query(Case).filter(Case.id == id).first()
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-        
-    if case.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the creator of the case can delete it")
-        
-    if case.status != "draft":
-        raise HTTPException(status_code=400, detail="Only draft cases can be deleted")
-        
-    db.query(Document).filter(Document.case_id == case.id).delete()
-    db.query(AuditLog).filter(AuditLog.case_id == case.id).delete()
-    
-    db.delete(case)
-    db.commit()
-    return {"message": "Case deleted successfully"}
+
 
 class CaseUpdate(BaseModel):
     category: str
