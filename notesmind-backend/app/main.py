@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, cases, documents, workflow, budget, versions, audit, ai_gateway, demo
+from .routers import auth, cases, documents, workflow, budget, versions, audit, ai_gateway, demo, insights
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,6 +25,7 @@ app.include_router(versions.router, prefix="/versions", tags=["Versions"])
 app.include_router(audit.router, prefix="/audit", tags=["Audit"])
 app.include_router(ai_gateway.router, prefix="", tags=["AI Gateway"])
 app.include_router(demo.router, prefix="/demo", tags=["Demo"])
+app.include_router(insights.router, prefix="/insights", tags=["Insights"])
 
 @app.get("/")
 def read_root():
