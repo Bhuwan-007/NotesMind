@@ -7,7 +7,8 @@ import {
   FileText, 
   Library, 
   Layers,
-  Feather
+  Feather,
+  BarChart3
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 py-6 px-3 space-y-2">
           {[
             { icon: FileText, label: "Active Drafts", href: "/dashboard" },
+            { icon: BarChart3, label: "Insights", href: "/dashboard/insights" },
             { icon: Library, label: "Rule Directory", href: "/dashboard/rules" },
             { icon: Layers, label: "Past Precedents", href: "/dashboard/precedents" },
           ].map((item, i) => {

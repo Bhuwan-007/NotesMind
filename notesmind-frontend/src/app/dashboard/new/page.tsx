@@ -199,7 +199,7 @@ export default function NewRequestPage() {
               <button
                 type="submit"
                 disabled={isCreating}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-ui font-bold text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-indigo)] disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {isCreating ? "Creating..." : "Next: Attach Documents"}
               </button>
@@ -236,7 +236,7 @@ export default function NewRequestPage() {
               <button
                 onClick={handleGenerateDraft}
                 disabled={isGenerating || missingDocs.length > 0}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-ui font-bold text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-indigo)] disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {isGenerating ? "Consulting AI Agent..." : "Next: Generate AI Notesheet"}
               </button>
