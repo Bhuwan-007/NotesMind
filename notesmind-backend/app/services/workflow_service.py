@@ -41,3 +41,15 @@ def can_approve(db: Session, case, user) -> bool:
         
     expected_role = chain[case.current_approval_stage]
     return user.role.value == expected_role
+
+def get_ai_approval_chain(system_chain: list[str]) -> list[str]:
+    """Mock AI logic to recommend a different approval chain for demonstration."""
+    ai_chain = list(system_chain)
+    if "registrar" not in ai_chain:
+        ai_chain.append("registrar")
+    else:
+        # If it already has registrar, maybe add dean or just something to differ
+        if "dean" not in ai_chain:
+            ai_chain.insert(0, "dean")
+    return ai_chain
+

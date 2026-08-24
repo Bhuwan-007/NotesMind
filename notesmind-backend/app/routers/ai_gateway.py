@@ -1,98 +1,190 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+import logging
+import httpx
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+
 from ..database import get_db
 from ..models import Case, Version, User
 from ..services.auth_service import get_current_user
 from ..services.workflow_service import get_approval_chain, get_missing_documents
+from ..services.workflow_service import get_approval_chain, get_missing_documents
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.post("/cases/{case_id}/generate-draft")
-def generate_draft(case_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    print(f"DEBUG: Entering generate-draft for case_id: {case_id}", flush=True)
+async def generate_draft(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a draft note-sheet for a case by calling the external
+    AgenticRAG service, then cross-check with NotesMind's own rules.
+    """
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        print(f"DEBUG: Case {case_id} NOT FOUND in DB!", flush=True)
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found in DB")
-        
-    if case.status != "draft":
-        raise HTTPException(status_code=400, detail="Can only generate drafts for cases in draft status")
+
+    if case.status not in ["draft", "under_review"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Can only generate drafts for cases in draft or under_review status",
+        )
 
     # 1. Retrieve system hard rules
     system_missing_docs = get_missing_documents(db, case)
     system_chain = get_approval_chain(db, case.category, case.amount)
 
-    # 2. Mock AI responses
-    detailed_draft = f"""SUBJECT: Administrative and Financial Sanction for {case.category.title()}
-
-1. This note is submitted to the competent authority to seek in-principle administrative and financial sanction for the {case.category.lower()}, amounting to ₹{case.amount:,.2f}.
-
-2. JUSTIFICATION: 
-The requested expenditure is essential for the smooth functioning and academic continuity of the department. Preliminary market research indicates that items satisfying the requisite technical specifications are currently cataloged and available.
-
-3. RULE POSITION (GFR 2017):
-In accordance with the guidelines stipulated in Rule 149 of the General Financial Rules (GFR) 2017, the procurement of routine goods and services must be executed mandatorily through the Government e-Marketplace (GeM). 
-(Note: Rule 154 allows direct purchase without quotation up to ₹25,000, which is not applicable here as the amount exceeds the limit).
-
-4. FINANCIAL IMPLICATION:
-The estimated expenditure for this proposal is ₹{case.amount:,.2f}. 
-This expenditure is proposed to be debited from the budget head "{case.budget_head or 'Relevant Department Head'}" allocated for the current Financial Year.
-
-5. APPROVAL SOUGHT:
-In light of the above, approval of the Competent Authority is solicited for:
-   a) Administrative approval for the proposal.
-   b) Financial sanction of ₹{case.amount:,.2f}.
-   c) Authorization to proceed with procurement/execution via the designated GeM portal / standard bidding process.
-
-Submitted for perusal and necessary approval please."""
+    # 2. Call external AI Agent for draft + citations
+    query = (
+        f"Draft an official notesheet for the following request.\n\n"
+        f"Category: {case.category}\n"
+        f"Purpose: {case.purpose}\n"
+        f"Amount: ₹{case.amount:,.2f}\n"
+        f"Budget head: {case.budget_head}\n"
+        f"Justification: {case.justification}\n\n"
+        f"Cite the relevant GFR rules and any similar precedent cases.\n\n"
+        f"CRITICAL INSTRUCTIONS:\n"
+        f"1. Output plain text ONLY. Do NOT use markdown formatting (no asterisks, no bold, no headers).\n"
+        f"2. Do NOT include any meta-commentary about the retrieval process in the draft (e.g. do not say 'No specific precedents were found'). Write ONLY the final notesheet content."
+    )
     
-    ai_missing_docs = []
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://fastapi-backend-production-4995.up.railway.app/api/v1/generate",
+                json={"query": query}
+            )
+            response.raise_for_status()
+            ai_result = response.json()
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        logger.exception("AI Agent call failed for case %s", case_id)
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI Agent service unavailable: {exc}",
+        )
+
+    detailed_draft: str = ai_result.get("answer", "No draft generated.")
     
-    recommended_chain = ["officer", "hod"]
-    if case.category == "lab equipment purchase" or case.amount > 10000:
-        recommended_chain.append("dean")
+    # Process citations
+    citations = []
+    raw_chunks = ai_result.get("chunks", [])
+    overall_confidence = 0.85 # Default if usage doesn't have it
+    
+    for chunk in raw_chunks:
+        # Determine type based on heuristic
+        source = chunk.get("source", "Unknown Source")
+        src_lower = source.lower()
+        if "notesheet" in src_lower or "case" in src_lower or "ggsipu" in src_lower:
+            c_type = "precedent"
+        else:
+            c_type = "rule"
+            
+        citations.append({
+            "type": c_type,
+            "id": source,
+            "excerpt": chunk.get("content", "No excerpt provided")[:500],
+            "source": source,
+            # TODO: Replace with real score if available from API chunk
+            "confidence": chunk.get("score") if chunk.get("score") is not None else 0.85
+        })
         
-    # Introduce an intentional disagreement for testing if amount is exactly 99999
-    if case.amount == 99999.0:
-        ai_missing_docs = ["Some AI Suggested Document"]
-        recommended_chain = ["officer", "hod", "dean", "registrar"]
+    precedents = [c for c in citations if c.get("type") == "precedent"]
+    rules = [c for c in citations if c.get("type") == "rule"]
+
+    # The AI Agent is a document RAG system — it does not manage approval
+    # chains or document requirements.  Those stay as NotesMind domain logic.
+    ai_missing_docs: list = []
+    recommended_chain: list = list(system_chain)  # default: agree with system
 
     # 3. Cross-check and merge
     merged_missing_docs = list(set(system_missing_docs + ai_missing_docs))
-    
+
     docs_disagreement = bool(set(ai_missing_docs) - set(system_missing_docs))
-    chain_disagreement = (recommended_chain != system_chain)
+    chain_disagreement = recommended_chain != system_chain
 
     # 4. Save draft in Case and Version
     case.draft_text = detailed_draft
-    
+    case.citations = citations
+
     new_version = Version(
         case_id=case.id,
         draft_text=detailed_draft,
-        edited_by=current_user.id
+        edited_by=current_user.id,
     )
     db.add(new_version)
     db.commit()
 
     return {
         "draft_text": detailed_draft,
-        "citations": [
-            {
-                "type": "rule",
-                "id": "RULE-01",
-                "excerpt": f"Expenditure under {case.category} requires appropriate justification.",
-                "source": "University Guidelines 2024",
-                "confidence": 0.95
-            }
-        ],
+        "citations": citations,
+        "precedents": precedents,
+        "rules": rules,
         "missing_documents": merged_missing_docs,
         "disagreements": {
             "chain_disagreement": chain_disagreement,
             "docs_disagreement": docs_disagreement,
             "ai_chain": recommended_chain,
-            "system_chain": system_chain
+            "system_chain": system_chain,
         },
-        "overall_confidence": 0.9
+        "overall_confidence": overall_confidence,
     }
+
+@router.get("/knowledge/search")
+async def search_knowledge(
+    query: str,
+    type: str = "all",
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Search the external AgenticRAG knowledge base directly.
+    """
+    if not query.strip():
+        return {"results": []}
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://fastapi-backend-production-4995.up.railway.app/api/v1/retrieve",
+                json={"query": query}
+            )
+            response.raise_for_status()
+            ai_result = response.json()
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        logger.exception("AI Agent retrieval failed for query: %s", query)
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI Agent service unavailable: {exc}",
+        )
+
+    raw_chunks = ai_result.get("chunks", [])
+    results = []
+    
+    for chunk in raw_chunks:
+        if chunk.get("contains_table") is True:
+            continue
+            
+        source = chunk.get("source", "Unknown Source")
+        src_lower = source.lower()
+        if "notesheet" in src_lower or "case" in src_lower or "ggsipu" in src_lower:
+            c_type = "precedent"
+        else:
+            c_type = "rule"
+            
+        if type != "all" and c_type != type:
+            continue
+            
+        results.append({
+            "id": chunk.get("chunk_id", source),
+            "source": source,
+            "excerpt": chunk.get("content", "No excerpt provided"),
+            "score": chunk.get("score", 0.85),
+            "type": c_type,
+            "pages": chunk.get("pages", [])
+        })
+
+    return {"results": results}

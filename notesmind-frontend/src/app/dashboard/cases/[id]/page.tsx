@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../lib/api";
-import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send, Lock, Loader2, Smartphone } from "lucide-react";
+import { Check, AlertCircle, ShieldAlert, ChevronLeft, Info, Trash2, Send, Lock, Loader2, Smartphone, Sparkles, FileText, AlertTriangle, FileWarning, Download, Cloud } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
 import { isConfidentialCase, needsOtpVerification } from "../../../../lib/confidentiality";
 import OtpVerificationModal from "../../../../components/OtpVerificationModal";
@@ -16,8 +16,9 @@ export default function CaseViewerPage() {
   const caseId = params.id as string;
 
   const [caseData, setCaseData] = useState<any>(null);
-  const [chainData, setChainData] = useState<{required_chain: string[], current_stage: number} | null>(null);
+  const [chainData, setChainData] = useState<any>(null);
   const [missingDocs, setMissingDocs] = useState<string[]>([]);
+  const [auditData, setAuditData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("rules");
   const [deleting, setDeleting] = useState(false);
@@ -27,6 +28,11 @@ export default function CaseViewerPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ category: "", amount: 0, budget_head: "", draft_text: "" });
+  const [generatingDraft, setGeneratingDraft] = useState(false);
+  
+  // Citations & Rules from generation
+  const [precedents, setPrecedents] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
 
   // OTP authorization state
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -42,14 +48,21 @@ export default function CaseViewerPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [cData, chData, mDocs] = await Promise.all([
+        const [cData, chData, mDocs, aData] = await Promise.all([
           api.get(`/cases/${caseId}`),
           api.get(`/cases/${caseId}/approval-chain`),
-          api.get(`/cases/${caseId}/missing-docs`)
+          api.get(`/cases/${caseId}/missing-docs`),
+          api.get(`/cases/${caseId}/audit`).catch(() => ({ timeline: [] }))
         ]);
         setCaseData(cData);
         setChainData(chData);
         setMissingDocs(mDocs.missing_documents || []);
+        setAuditData(aData.timeline || []);
+        
+        const citations = cData.citations || [];
+        setPrecedents(citations.filter((c: any) => c.type === "precedent"));
+        setRules(citations.filter((c: any) => c.type === "rule"));
+        
         setEditForm({
           category: cData.category,
           amount: cData.amount,
@@ -83,15 +96,17 @@ export default function CaseViewerPage() {
     }
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (newStatus?: string) => {
     try {
-      const updated = await api.put(`/cases/${caseId}`, editForm);
+      const payload = newStatus ? { ...editForm, status: newStatus } : editForm;
+      const updated = await api.put(`/cases/${caseId}/draft`, payload);
       setCaseData(updated);
       setIsEditing(false);
       
       // refresh chain if amount/category changed
       const chData = await api.get(`/cases/${caseId}/approval-chain`);
       setChainData(chData);
+      showToast("Draft updated successfully", "success");
     } catch (err: any) {
       alert("Failed to save changes: " + err.message);
     }
@@ -107,6 +122,25 @@ export default function CaseViewerPage() {
     } catch (err) {
       alert("Failed to submit");
       setSubmitting(false);
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    setGeneratingDraft(true);
+    try {
+      const res = await api.post(`/cases/${caseId}/generate-draft`, {});
+      setCaseData((prev: any) => ({ ...prev, draft_text: res.draft_text }));
+      setEditForm((prev: any) => ({ ...prev, draft_text: res.draft_text }));
+      setPrecedents(res.precedents || []);
+      setRules(res.rules || []);
+      if (res.ai_disagreement && chainData) {
+        setChainData({ ...chainData, ai_disagreement: true });
+      }
+      showToast("Draft generated via AI", "success");
+    } catch (err: any) {
+      showToast("Failed to generate draft: " + err.message, "error");
+    } finally {
+      setGeneratingDraft(false);
     }
   };
 
@@ -191,7 +225,7 @@ export default function CaseViewerPage() {
 
         {/* ═══ Awaiting Dean Authorization Gate ═══ */}
         {showAuthGate && (
-          <div className="auth-overlay absolute inset-0 z-30 flex items-center justify-center">
+          <div className="auth-overlay absolute inset-0 z-30 flex items-center justify-center no-print">
             <div
               className="w-full max-w-lg mx-auto p-10 text-center"
               style={{ animation: "modalSlideIn 0.4s ease" }}
@@ -289,21 +323,38 @@ export default function CaseViewerPage() {
           </div>
         )}
         
-        {/* Top actions bar */}
-        <div className="h-14 bg-white bg-opacity-50 border-b border-[#e5e1d8] flex items-center justify-between px-6 shrink-0 z-10">
-          <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
-            <ChevronLeft size={16} /> Back to Dashboard
-          </button>
+        <div className="h-14 bg-white bg-opacity-50 border-b border-[#e5e1d8] flex items-center justify-between px-6 shrink-0 z-10 no-print">
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <ChevronLeft size={16} /> Back to Dashboard
+            </button>
+            <div className="w-px h-4 bg-[#e5e1d8]"></div>
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <Download size={16} /> Download PDF
+            </button>
+            <button onClick={() => showToast("Save to Drive coming soon!", "success")} className="flex items-center gap-1.5 text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] transition-colors font-ui text-sm font-semibold">
+              <Cloud size={16} /> Save to Drive
+            </button>
+          </div>
           
-          {isDraft && (
+          {(isDraft || isUnderReview) && (
             <div className="flex items-center gap-3">
               {isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-ui font-semibold text-[var(--color-umber-light)]">Cancel</button>
-                  <button onClick={handleSaveEdit} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors">Save Changes</button>
+                  <button onClick={() => handleSaveEdit(isUnderReview ? "under_review" : "draft")} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors">Save Changes</button>
+                  {isUnderReview && (
+                    <button onClick={() => handleSaveEdit("draft")} className="px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors">Save as Draft</button>
+                  )}
                 </>
               ) : (
-                <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] bg-[var(--color-indigo-mute)] bg-opacity-30 hover:bg-opacity-50 transition-colors">Edit Details</button>
+                <>
+                  <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] bg-[var(--color-indigo-mute)] bg-opacity-30 hover:bg-opacity-50 transition-colors">Edit Details</button>
+                  <button onClick={handleGenerateDraft} disabled={generatingDraft} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-indigo)] hover:bg-[var(--color-indigo-mute)] hover:bg-opacity-30 transition-colors">
+                    {generatingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {generatingDraft ? "Generating..." : "Generate Again"}
+                  </button>
+                </>
               )}
               
               <button 
@@ -311,15 +362,17 @@ export default function CaseViewerPage() {
                 disabled={deleting}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-ui font-semibold text-[var(--color-terracotta)] hover:bg-[var(--color-terracotta-light)] transition-colors"
               >
-                <Trash2 size={16} /> Delete Draft
+                <Trash2 size={16} /> Delete
               </button>
-              <button 
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors"
-              >
-                <Send size={16} /> Submit Note
-              </button>
+              {isDraft && (
+                <button 
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-ui font-bold shadow-sm text-white bg-[var(--color-indigo)] hover:bg-[var(--color-indigo-light)] transition-colors"
+                >
+                  <Send size={16} /> Submit Note
+                </button>
+              )}
             </div>
           )}
 
@@ -344,8 +397,17 @@ export default function CaseViewerPage() {
         </div>
 
         {/* Soft Thread Stepper Header */}
-        <div className="h-24 bg-[var(--color-khadi-paper)] border-b border-[#e5e1d8] flex items-center justify-center px-10 shrink-0 shadow-sm z-10">
-          <div className="w-full max-w-3xl relative flex justify-between items-center">
+        <div className="h-28 bg-[var(--color-khadi-paper)] border-b border-[#e5e1d8] flex flex-col items-center justify-center px-10 shrink-0 shadow-sm z-10 relative no-print">
+          
+          {chainData?.ai_disagreement && (
+            <div className="absolute top-2 flex items-center justify-center w-full pointer-events-none">
+              <div className="ai-disagreement-badge px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 pointer-events-auto">
+                <AlertTriangle size={12} strokeWidth={3} /> AI and system rules disagree on required approver — review recommended
+              </div>
+            </div>
+          )}
+
+          <div className="w-full max-w-3xl relative flex justify-between items-center mt-3">
             <div className="thread-stepper-line"></div>
             {approvalNodes.map((node: string, idx: number) => {
               let state = "pending";
@@ -367,8 +429,8 @@ export default function CaseViewerPage() {
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 overflow-y-auto p-8 flex justify-center">
-          <div className="bg-[var(--color-khadi-paper)] w-full max-w-[800px] rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-12 lg:p-16 border border-white relative h-max min-h-full">
+        <div className="flex-1 overflow-y-auto p-8 flex justify-center items-start bg-[#f0ede6]">
+          <div className="a4-document h-max">
             
             {missingDocs.length > 0 && (
               <div className="absolute top-8 right-8">
@@ -378,7 +440,7 @@ export default function CaseViewerPage() {
               </div>
             )}
 
-            <div className="mb-12 text-center mt-4">
+            <div className="border-b border-[#e5e1d8] pb-6 mb-8 text-center mt-4">
               <h2 className="font-ui text-sm font-bold uppercase tracking-widest text-[var(--color-umber-light)] mb-2">
                 University School of Automation & Robotics
               </h2>
@@ -415,27 +477,49 @@ export default function CaseViewerPage() {
                 </p>
               )}
               
-              <div className="mt-8 border-t border-dashed border-[#e5e1d8] pt-8">
-                {isEditing ? (
-                  <textarea 
-                    value={editForm.draft_text} 
-                    onChange={e => setEditForm({...editForm, draft_text: e.target.value})} 
-                    className="w-full h-64 p-4 border border-[#e5e1d8] rounded-md bg-white font-doc text-[17px] leading-relaxed resize-y"
-                    placeholder="Draft text..."
-                  />
-                ) : (
-                  <div className="whitespace-pre-wrap">
-                    {caseData.draft_text || (
-                      <span className="italic text-[var(--color-umber-light)]">
-                        No draft text generated yet.
-                      </span>
-                    )}
-                  </div>
-                )}
+              <div className="mt-8 border-t border-[#e5e1d8] pt-8 draft-text-container relative">
+                
+                {/* Stage 2.5 Restricted view */}
+                <div className={`redacted-overlay ${!showAuthGate ? 'redacted-overlay-hidden' : ''}`}>
+                  <Lock size={48} className="text-[var(--color-terracotta)] mb-4 opacity-80" strokeWidth={1.5} />
+                  <span className="font-ui text-sm font-bold uppercase tracking-widest text-[var(--color-terracotta)] bg-white px-4 py-2 rounded-full shadow-sm border border-[var(--color-terracotta)] border-opacity-20">
+                    Restricted — Awaiting Dean Authorization
+                  </span>
+                </div>
+
+                <div className={showAuthGate ? 'draft-text-redacted' : ''}>
+                  {isEditing ? (
+                    <textarea 
+                      value={editForm.draft_text} 
+                      onChange={e => setEditForm({...editForm, draft_text: e.target.value})} 
+                      className="w-full h-96 p-6 border border-[var(--color-indigo-mute)] rounded-lg bg-[#faf9f7] font-doc text-[17px] leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-[var(--color-indigo)] focus:border-transparent transition-all"
+                      placeholder="Draft text..."
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap font-doc text-[18px] leading-[1.8] text-[#2c3e50] tracking-[0.2px]">
+                      {caseData.draft_text ? (
+                        caseData.draft_text
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-20 opacity-70">
+                          <FileText size={48} className="text-[#c5bfb4] mb-4" strokeWidth={1} />
+                          <p className="font-ui text-sm text-[var(--color-umber-light)] italic mb-6">No draft text generated yet.</p>
+                          <button 
+                            onClick={handleGenerateDraft}
+                            disabled={generatingDraft}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-ui font-bold shadow-sm text-[var(--color-indigo)] bg-white border border-[var(--color-indigo-mute)] hover:border-[var(--color-indigo)] hover:bg-[#f8f9fa] transition-all"
+                          >
+                            {generatingDraft ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                            {generatingDraft ? "Generating Draft..." : "Generate Draft via AI"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {missingDocs.length > 0 && (
-                <div className="my-8 p-6 rounded-2xl bg-[var(--color-terracotta-light)] border border-[var(--color-terracotta)] border-opacity-10 relative overflow-hidden">
+                <div className="my-8 p-6 rounded-2xl bg-[var(--color-terracotta-light)] border border-[var(--color-terracotta)] border-opacity-10 relative overflow-hidden no-print">
                    <div className="absolute top-0 left-0 bottom-0 w-1 bg-[var(--color-terracotta)]"></div>
                    <p className="font-ui font-bold text-[13px] text-[var(--color-terracotta)] uppercase tracking-widest mb-2 flex items-center gap-2">
                      <ShieldAlert size={16} /> Pending Annexures
@@ -448,13 +532,47 @@ export default function CaseViewerPage() {
                    </ul>
                 </div>
               )}
+
+              {/* Signature Blocks */}
+              <div className="mt-16 pt-8 grid gap-8 w-full signature-row" style={{ gridTemplateColumns: `repeat(${approvalNodes.length || 3}, minmax(0, 1fr))` }}>
+                {approvalNodes.map((node: string, idx: number) => (
+                  <div key={idx} className="flex flex-col gap-2 signature-block break-inside-avoid">
+                    <div className="h-0 border-b border-dashed border-[#c5bfb4] mb-2 w-full"></div>
+                    <span className="font-ui text-xs font-bold uppercase tracking-wider text-[var(--color-indigo)]">
+                      {node.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                    <span className="font-ui text-[10px] text-[var(--color-umber-light)]">Date: _________________</span>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Citations Footer */}
+            {(rules.length > 0 || precedents.length > 0) && (
+              <div className="mt-16 pt-12">
+                <div className="border-t border-[#e5e1d8] pt-4">
+                  <h4 className="font-ui text-xs font-bold uppercase tracking-widest text-[var(--color-umber-light)] mb-3">References & Citations</h4>
+                  <div className="space-y-3">
+                    {rules.map((r, i) => (
+                      <p key={`r-${i}`} className="font-doc text-[11px] text-[var(--color-umber-light)] leading-relaxed">
+                        <span className="font-bold text-[var(--color-indigo)]">Rule {i+1}:</span> {r.excerpt} — <em className="text-[var(--color-umber)]">{r.source}</em>
+                      </p>
+                    ))}
+                    {precedents.map((p, i) => (
+                      <p key={`p-${i}`} className="font-doc text-[11px] text-[var(--color-umber-light)] leading-relaxed">
+                        <span className="font-bold text-[var(--color-indigo)]">Precedent {i+1}:</span> {p.excerpt} — <em className="text-[var(--color-umber)]">{p.source}</em>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Insight Panel */}
-      <div className="w-80 bg-[var(--color-khadi-paper)] border-l border-[#e5e1d8] shadow-[-10px_0_30px_rgba(0,0,0,0.02)] flex flex-col shrink-0 z-20 h-full">
+      <div className="w-80 bg-[var(--color-khadi-paper)] border-l border-[#e5e1d8] shadow-[-10px_0_30px_rgba(0,0,0,0.02)] flex flex-col shrink-0 z-20 h-full no-print">
         
         <div className="p-6 pb-4 border-b border-[#e5e1d8]">
           <h2 className="font-ui font-bold text-base text-[var(--color-indigo)] flex items-center gap-2">
@@ -463,21 +581,24 @@ export default function CaseViewerPage() {
           <p className="font-ui text-xs text-[var(--color-umber-light)] mt-1">AI-assisted rule grounding</p>
         </div>
 
-        <div className="flex p-2 bg-[var(--color-khadi)] mx-4 mt-4 rounded-xl border border-[#e5e1d8] shadow-inner">
+        <div className="flex p-2 bg-[var(--color-khadi)] mx-4 mt-4 rounded-xl border border-[#e5e1d8] shadow-inner gap-1">
           {[
-            { id: 'rules', label: 'Citations' },
-            { id: 'precedents', label: 'Precedents' }
+            { id: 'precedents', label: 'Precedents' },
+            { id: 'rules', label: 'Rules' },
+            { id: 'docs', label: 'Docs', alert: missingDocs.length > 0 },
+            { id: 'audit', label: 'Audit' }
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 font-ui text-xs font-bold uppercase tracking-wider py-2.5 rounded-lg transition-all ${
+              className={`flex-1 font-ui text-[10px] font-bold uppercase tracking-wider py-2.5 rounded-lg transition-all relative flex justify-center items-center gap-1 ${
                 activeTab === tab.id 
-                  ? 'bg-white text-[var(--color-indigo)] shadow-sm' 
-                  : 'text-[var(--color-umber-light)] hover:text-[var(--color-indigo)]'
+                  ? 'bg-white text-[var(--color-indigo)] shadow-sm border border-[#e5e1d8]' 
+                  : 'text-[var(--color-umber-light)] hover:text-[var(--color-indigo)] hover:bg-black hover:bg-opacity-5'
               }`}
             >
               {tab.label}
+              {tab.alert && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-terracotta)] absolute top-2 right-2"></span>}
             </button>
           ))}
         </div>
@@ -485,28 +606,88 @@ export default function CaseViewerPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           
           {activeTab === 'rules' && (
-            <div className="animate-in fade-in duration-300">
-              <div className="bg-white rounded-xl p-4 border border-[var(--color-indigo-mute)] shadow-sm hover:shadow-md transition-shadow cursor-default ring-1 ring-[var(--color-indigo)] ring-opacity-20">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-ui text-[10px] font-bold uppercase tracking-widest text-white bg-[var(--color-indigo)] px-2 py-1 rounded-md">Primary Rule</span>
-                  <Check size={16} className="text-[var(--color-indigo)]" />
+            <div className="animate-in fade-in duration-300 space-y-4">
+              {rules.length > 0 ? rules.map((r, i) => (
+                <div key={i} className="citation-card relative overflow-hidden">
+                  <div className="absolute top-0 left-0 bottom-0 w-1 bg-blue-400"></div>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-200 mb-2">Rule: {r.id}</span>
+                  <p className="font-ui text-[13px] text-[#2c3e50] leading-relaxed mb-3">"{r.excerpt}"</p>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#e5e1d8]">
+                    <span className="font-ui text-xs text-[var(--color-umber-light)] font-semibold">{r.source}</span>
+                    <span className="font-ui text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">{(r.confidence * 100).toFixed(0)}% Match</span>
+                  </div>
                 </div>
-                <h3 className="font-doc font-bold text-lg text-[var(--color-indigo)] mb-1">Approval Chain</h3>
-                <p className="font-ui text-sm text-[var(--color-umber-light)] leading-relaxed">
-                  Based on the requested amount of ₹{caseData.amount.toLocaleString()}, the required routing is:
-                  <br/> <strong>{approvalNodes.join(" ➔ ").toUpperCase()}</strong>
-                </p>
-              </div>
+              )) : (
+                <div className="text-center py-10 opacity-50">
+                  <FileText size={32} className="mx-auto mb-2 text-[var(--color-umber-light)]" strokeWidth={1.5}/>
+                  <p className="font-ui text-xs text-[var(--color-umber-light)]">No rules cited.</p>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'precedents' && (
             <div className="animate-in fade-in duration-300 space-y-4">
-               <div className="bg-white rounded-xl p-4 border border-[var(--color-indigo-mute)] shadow-sm cursor-pointer hover:border-[var(--color-indigo)] transition-colors">
-                  <p className="font-ui text-xs text-[var(--color-umber-light)] mb-3 leading-relaxed">
-                    No exact precedents found for this specific request.
-                  </p>
-               </div>
+               {precedents.length > 0 ? precedents.map((p, i) => (
+                <div key={i} className="citation-card relative overflow-hidden">
+                  <div className="absolute top-0 left-0 bottom-0 w-1 bg-purple-400"></div>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-purple-50 text-purple-700 border border-purple-200 mb-2">Precedent: {p.id}</span>
+                  <p className="font-ui text-[13px] text-[#2c3e50] leading-relaxed mb-3">"{p.excerpt}"</p>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#e5e1d8]">
+                    <span className="font-ui text-xs text-[var(--color-umber-light)] font-semibold">{p.source}</span>
+                    <span className="font-ui text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">{(p.confidence * 100).toFixed(0)}% Match</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-10 opacity-50">
+                  <FileText size={32} className="mx-auto mb-2 text-[var(--color-umber-light)]" strokeWidth={1.5}/>
+                  <p className="font-ui text-xs text-[var(--color-umber-light)]">No precedents cited.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'docs' && (
+            <div className="animate-in fade-in duration-300 space-y-4">
+               {missingDocs.length > 0 ? missingDocs.map((doc, i) => (
+                <div key={i} className="citation-card relative overflow-hidden bg-[var(--color-terracotta-light)] border-[var(--color-terracotta)] border-opacity-30">
+                  <div className="absolute top-0 left-0 bottom-0 w-1 bg-[var(--color-terracotta)]"></div>
+                  <div className="flex items-start gap-3">
+                    <FileWarning size={18} className="text-[var(--color-terracotta)] mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="font-ui text-[13px] font-bold text-[var(--color-terracotta)] mb-1">Missing Annexure</h4>
+                      <p className="font-doc text-sm text-[var(--color-umber)] leading-snug">{doc}</p>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-10 opacity-50">
+                  <Check size={32} className="mx-auto mb-2 text-green-500" strokeWidth={1.5}/>
+                  <p className="font-ui text-xs text-green-600 font-bold">All required documents attached.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'audit' && (
+            <div className="animate-in fade-in duration-300 px-2">
+              <div className="mt-4">
+                {auditData.map((event, idx) => (
+                  <div key={idx} className="timeline-item">
+                    <div className="timeline-dot"></div>
+                    <div className="ml-2">
+                      <p className="font-ui text-[10px] font-bold uppercase tracking-widest text-[var(--color-umber-light)] mb-1">
+                        {new Date(event.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                      </p>
+                      <p className="font-ui text-xs font-semibold text-[var(--color-indigo)]">{event.actor}</p>
+                      <p className="font-ui text-[13px] text-[#2c3e50] mt-1">{event.action}</p>
+                    </div>
+                  </div>
+                ))}
+                {auditData.length === 0 && (
+                  <p className="font-ui text-xs text-[var(--color-umber-light)] text-center py-10 italic">No audit history available.</p>
+                )}
+              </div>
             </div>
           )}
 

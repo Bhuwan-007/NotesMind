@@ -32,18 +32,20 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
 }
 
 export const api = {
-  get: (endpoint: string) => fetchWithAuth(endpoint),
-  post: (endpoint: string, body: any) => 
+  get: (endpoint: string, options?: RequestInit) => fetchWithAuth(endpoint, options),
+  post: (endpoint: string, body: any, options?: RequestInit) => 
     fetchWithAuth(endpoint, {
       method: "POST",
       body: JSON.stringify(body),
+      ...options,
     }),
-  put: (endpoint: string, body: any) => 
+  put: (endpoint: string, body: any, options?: RequestInit) => 
     fetchWithAuth(endpoint, {
       method: "PUT",
       body: JSON.stringify(body),
+      ...options,
     }),
-  delete: (endpoint: string) => fetchWithAuth(endpoint, { method: "DELETE" }),
+  delete: (endpoint: string, options?: RequestInit) => fetchWithAuth(endpoint, { method: "DELETE", ...options }),
   postForm: async (endpoint: string, formData: FormData) => {
     // For login which expects x-www-form-urlencoded
     const response = await fetch(`${API_URL}${endpoint}`, {
