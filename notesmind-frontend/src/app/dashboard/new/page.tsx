@@ -220,7 +220,7 @@ export default function NewRequestPage() {
                       <button
                         onClick={() => handleMockUpload(doc)}
                         disabled={isUploading}
-                        className="px-3 py-1 bg-accent-subtle text-accent rounded-md text-sm font-medium hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
+                        className="px-3 py-1 bg-accent-subtle text-accent rounded-md text-sm font-medium hover:bg-accent hover:text-black transition-colors disabled:opacity-50"
                       >
                         Mock Upload
                       </button>
@@ -228,7 +228,7 @@ export default function NewRequestPage() {
                   ))}
                 </ul>
               ) : (
-                <div className="p-4 bg-success text-white rounded-md text-sm font-medium">
+                <div className="p-4 bg-success text-black rounded-md text-sm font-medium">
                   All required documents attached!
                 </div>
               )}
@@ -297,7 +297,7 @@ export default function NewRequestPage() {
 
               <button
                 onClick={handleSubmit}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-success hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-success"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-success"
               >
                 Submit Request for Approval
               </button>
