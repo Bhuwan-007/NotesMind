@@ -399,13 +399,13 @@ export default function CaseViewerPage() {
         {/* Soft Thread Stepper Header */}
         <div className="h-28 bg-[var(--color-khadi-paper)] border-b border-[#e5e1d8] flex flex-col items-center justify-center px-10 shrink-0 shadow-sm z-10 relative no-print">
           
-          {chainData?.ai_disagreement && (
+          {/* {chainData?.ai_disagreement && (
             <div className="absolute top-2 flex items-center justify-center w-full pointer-events-none">
               <div className="ai-disagreement-badge px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 pointer-events-auto">
                 <AlertTriangle size={12} strokeWidth={3} /> AI and system rules disagree on required approver — review recommended
               </div>
             </div>
-          )}
+          )} */}
 
           <div className="w-full max-w-3xl relative flex justify-between items-center mt-3">
             <div className="thread-stepper-line"></div>
